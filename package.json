@@ -4,7 +4,10 @@
   "description": "",
   "main": "client.js",
   "dependencies": {
+    "get-folder-size": "^2.0.1",
     "node-fetch": "^2.6.0",
+    "pretty-bytes": "^5.2.0",
+    "rimraf": "^2.6.3",
     "webtorrent": "^0.103.4",
     "xml2js": "^0.4.19",
     "yerbamate": "^2.1.2"

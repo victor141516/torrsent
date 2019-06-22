@@ -1,11 +1,15 @@
-const fetch = require("node-fetch");
+const fetch = require('node-fetch');
 const fs = require('fs');
+const _getSize = require('get-folder-size');
 const _parseXml = require('xml2js').parseString;
+const prettyBytes = require('pretty-bytes');
+const rimraf = require('rimraf');
 const util = require('util');
 const yerbamate = require('yerbamate');
 const WebTorrent = require('webtorrent');
 
 const parseXml = util.promisify(_parseXml);
+const getSize = util.promisify(_getSize);
 const client = new WebTorrent()
 
 
@@ -32,25 +36,62 @@ async function uploadToDrive(path, onComplete) {
     yerbamate.run(rcloneCommand, '', {}, onComplete);
 }
 
+async function cleanupDownloads(downloadPath, torrentClient) {
+    console.log('Cleanup begins...');
+    const allDownloads = fs.readdirSync(downloadPath).map(async f => {
+        const path = `${downloadPath}/${f}`;
+        return {
+            directoryName: f,
+            date: fs.lstatSync(path).ctimeMs,
+            size: await getSize(path),
+            torrent: torrentClient.torrents.find(t => t.path === path)
+        };
+    });
+    const totalSize = allDownloads.reduce(async (a, e) => await a + (await e).size, 0);
+    console.log('Download folder size:', prettyBytes(await totalSize));
+    console.log('Listing torrents to delete...')
+
+    const deletedBytes = allDownloads
+        .reduce(async (a, e) => {
+            const elem = await e;
+            const path = `${downloadPath}/${elem.directoryName}`;
+            const ratio = elem.torrent.uploaded / elem.torrent.downloaded;
+            const time = (Date.now() - elem.date) / 1000;
+            const canDeleteByRatio = ratio > config.maxRatio;
+            const canDeleteByDate = time > config.maxOldnessSeconds;
+            if (canDeleteByDate || canDeleteByRatio) {
+                elem.torrent.destroy(() => {
+                    rimraf(path, () => console.log(`${path} deleted`));
+                })
+                return await a + elem.size;
+            } else return await a;
+        }, 0);
+
+    console.log(`${prettyBytes(await deletedBytes)} being deleted deleted`)
+}
+
 
 async function handleFeedItems(feedItems) {
     // feedItems.forEach(async item => {
-        const item = feedItems[0]
+    [feedItems[0], feedItems[1]].forEach(async item => {
+        // const item = feedItems[0]
         const res = await fetch(item.link, {redirect: 'manual'});
         const magnet = res.headers.get('location');
         client.add(magnet, torrent => {
-            console.log(`New torrent: \n  Title: ${item.title}\n  Download path: ${torrent.path}`);
+            console.log(`\nNew torrent: \n  Title: ${item.title}\n  Download path: ${torrent.path}\n  Size: ${prettyBytes(Number(item.size))}`);
             torrent.on('download', () => {
-                const percent = ((torrent.progress*100).toFixed(2)).toString();
-                process.stdout.clearLine();
-                process.stdout.cursorTo(0);
-                process.stdout.write(`Progress: ${percent} %`);
+                if (Math.random() > 0.99999) return;
+                const percent = ((torrent.progress * 100).toFixed(2)).toString();
+                console.log(`Progress of ${item.title}: ${percent} %`);
             });
             torrent.on('done', () => {
-                uploadToDrive(torrent.path, () => console.log('Upload complete:', item.title));
+                uploadToDrive(torrent.path, () => {
+                    cleanupDownloads(torrent.path.split('/').slice(0, -1).join('/'), client);
+                    console.log('Upload complete:', item.title);
+                });
             })
         })
-    // })
+    })
 }
 
 
@@ -78,13 +119,3 @@ feeds.forEach(async f => {
     }).reduce((acc, el) => acc.concat(el), []);
     handleFeedItems(feedItems);
 });
-
-
-// const torrentId = 'magnet:?xt=urn:btih:08ada5a7a6183aae1e09d831df6748d566095a10&dn=Sintel&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fsintel.torrent'
-
-// client.add(torrentId, function (torrent) {
-//     const file = torrent.files.find(function (file) {
-//         return file.name.endsWith('.mp4')
-//     })
-//     file.appendTo('body')
-// })
