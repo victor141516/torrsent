@@ -2,7 +2,7 @@ const fetch = require('node-fetch');
 const fs = require('fs');
 const _getSize = require('get-folder-size');
 const _parseXml = require('xml2js').parseString;
-const prettyBytes = require('pretty-bytes');
+const prettyBytes = n => require('pretty-bytes')(Number(n));
 const rimraf = require('rimraf');
 const util = require('util');
 const yerbamate = require('yerbamate');
@@ -12,6 +12,7 @@ const parseXml = util.promisify(_parseXml);
 const getSize = util.promisify(_getSize);
 const client = new WebTorrent()
 
+const downloadingItems = {};
 
 let feeds;
 try {
@@ -36,55 +37,53 @@ async function uploadToDrive(path, onComplete) {
     yerbamate.run(rcloneCommand, '', {}, onComplete);
 }
 
-async function cleanupDownloads(downloadPath, torrentClient) {
-    console.log('Cleanup begins...');
-    const allDownloads = fs.readdirSync(downloadPath).map(async f => {
-        const path = `${downloadPath}/${f}`;
-        return {
-            directoryName: f,
-            date: fs.lstatSync(path).ctimeMs,
-            size: await getSize(path),
-            torrent: torrentClient.torrents.find(t => t.path === path)
-        };
-    });
-    const totalSize = allDownloads.reduce(async (a, e) => await a + (await e).size, 0);
-    console.log('Download folder size:', prettyBytes(await totalSize));
-    console.log('Listing torrents to delete...')
 
-    const deletedBytes = allDownloads
-        .reduce(async (a, e) => {
-            const elem = await e;
-            const path = `${downloadPath}/${elem.directoryName}`;
-            const ratio = elem.torrent.uploaded / elem.torrent.downloaded;
-            const time = (Date.now() - elem.date) / 1000;
-            const canDeleteByRatio = ratio > config.maxRatio;
-            const canDeleteByDate = time > config.maxOldnessSeconds;
-            if (canDeleteByDate || canDeleteByRatio) {
-                elem.torrent.destroy(() => {
-                    rimraf(path, () => console.log(`${path} deleted`));
-                })
-                return await a + elem.size;
-            } else return await a;
-        }, 0);
-
-    console.log(`${prettyBytes(await deletedBytes)} being deleted deleted`)
+function removeTorrent(torrent, item, reason, onDelete) {
+    torrent.destroy(() =>
+        rimraf(torrent.path, () => {
+            console.log(`${item.title} deleted by ${reason} (${prettyBytes(item.size)})`);
+            if (onDelete) onDelete();
+        }));
 }
 
 
 async function handleFeedItems(feedItems) {
     // feedItems.forEach(async item => {
     [feedItems[0], feedItems[1]].forEach(async item => {
-        // const item = feedItems[0]
         const res = await fetch(item.link, {redirect: 'manual'});
         const magnet = res.headers.get('location');
+        if (downloadingItems[magnet]) return;
+
         client.add(magnet, torrent => {
-            console.log(`\nNew torrent: \n  Title: ${item.title}\n  Download path: ${torrent.path}\n  Size: ${prettyBytes(Number(item.size))}`);
-            torrent.on('download', () => {
-                if (Math.random() > 0.99999) return;
+            torrent.createdAt = Date.now();
+            torrent.downloadFinishedAt = null;
+            torrent.on('ready', () => client.seed(torrent.path));
+            torrent.on('error', err => console.log('Error on torrent:', item.name));
+            console.log(`\nNew torrent: \n  Title: ${item.title}\n  Download path: ${torrent.path}\n  Size: ${prettyBytes(item.size)}`);
+
+            const checkerLoop = setInterval(() => {
                 const percent = ((torrent.progress * 100).toFixed(2)).toString();
-                console.log(`Progress of ${item.title}: ${percent} %`);
+                console.log(`Progress of ${item.title}: ${percent} % | DL @ ${prettyBytes(torrent.downloadSpeed)}/s`);
+
+                if (torrent.uploaded / torrent.downloaded > config.maxRatio)
+                    removeTorrent(torrent, item, 'ratio reached', () => clearInterval(checkerLoop));
+
+                if (torrent.numPeers === 0 && Date.now() - torrent.createdAt > config.maxOldnessSecondsWithoutPeers)
+                    removeTorrent(torrent, item, 'max time without peers reached', () => clearInterval(checkerLoop));
+
+                if (torrent.downloadFinishedAt !== null && Date.now() - torrent.downloadFinishedAt > config.maxOldnessSecondsSeeding)
+                    removeTorrent(torrent, item, 'max time seeding reached', () => clearInterval(checkerLoop));
+            }, 5000);
+
+            torrent.on('infoHash', () => {
+                if (downloadingItems[torrent.infoHash] && torrent.progress === 1)
+                    removeTorrent(torrent, item, 'already downloaded (size is wrong -->)', () => clearInterval(checkerLoop));
+                else downloadingItems[torrent.infoHash] = 'infoHash';
             });
+
             torrent.on('done', () => {
+                torrent.downloadFinishedAt = Date.now();
+                downloadingItems[magnet] = 'magnet'
                 uploadToDrive(torrent.path, () => {
                     cleanupDownloads(torrent.path.split('/').slice(0, -1).join('/'), client);
                     console.log('Upload complete:', item.title);
@@ -118,4 +117,10 @@ feeds.forEach(async f => {
         })
     }).reduce((acc, el) => acc.concat(el), []);
     handleFeedItems(feedItems);
+});
+
+
+client.on('error', err => {
+    // End feed loop
+    console.error('Fatal error on client:', err);
 });
