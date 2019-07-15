@@ -146,17 +146,18 @@ setIntervalAndInit(() => {
         .reduce((acc, el) => acc.concat(el), []);
         handleFeedItems(feedItems);
     });
-    const mejorTorrentPreItems = await mejortorrent.scrape()
-    const mejorTorrentItems = mejorTorrentPreItems.map(item => {
-        return {
-            title: item.title,
-            size: -1,
-            pubDate: 1,
-            link: item.link,
-            enclosure: ''
-        }
+    mejortorrent.scrape().then(items => {
+        const newItems = items.map(item => {
+            return {
+                title: item.title,
+                size: -1,
+                pubDate: 1,
+                link: item.link,
+                enclosure: ''
+            }
+        });
+        handleFeedItems(newItems);
     });
-    handleFeedItems(mejorTorrentItems);
 }, config.checkInterval * 1000);
 
 const progressLoop = setInterval(() => {
