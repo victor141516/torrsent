@@ -146,20 +146,20 @@ setIntervalAndInit(() => {
         .reduce((acc, el) => acc.concat(el), []);
         handleFeedItems(feedItems);
     });
-    console.log('Fetching new items from mejortorrent...')
-    mejortorrent.scrape().then(items => {
-        const newItems = items.map(item => {
-            return {
-                title: item.title,
-                size: -1,
-                pubDate: 1,
-                link: item.link,
-                enclosure: ''
-            }
-        });
-        console.log(`Got ${newItems.length} from mejortorrent`)
-        handleFeedItems(newItems);
-    });
+    // console.log('Fetching new items from mejortorrent...')
+    // mejortorrent.scrape().then(items => {
+    //     const newItems = items.map(item => {
+    //         return {
+    //             title: item.title,
+    //             size: -1,
+    //             pubDate: 1,
+    //             link: item.link,
+    //             enclosure: ''
+    //         }
+    //     });
+    //     console.log(`Got ${newItems.length} from mejortorrent`)
+    //     handleFeedItems(newItems);
+    // });
 }, config.checkInterval * 1000);
 
 const progressLoop = setInterval(() => {
