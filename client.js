@@ -146,6 +146,7 @@ setIntervalAndInit(() => {
         .reduce((acc, el) => acc.concat(el), []);
         handleFeedItems(feedItems);
     });
+    console.log('Fetching new items from mejortorrent...')
     mejortorrent.scrape().then(items => {
         const newItems = items.map(item => {
             return {
@@ -156,6 +157,7 @@ setIntervalAndInit(() => {
                 enclosure: ''
             }
         });
+        console.log(`Got ${newItems.length} from mejortorrent`)
         handleFeedItems(newItems);
     });
 }, config.checkInterval * 1000);
