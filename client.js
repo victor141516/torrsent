@@ -1,3 +1,4 @@
+const cTable = require('console.table');
 const fetch = require('node-fetch');
 const fs = require('fs');
 const _getSize = require('get-folder-size');
@@ -135,7 +136,7 @@ setIntervalAndInit(() => {
                 } = item;
                 return {
                     title: (title || []).pop(),
-                    size: (size || []).pop(),
+                    size: (size || ['-1']).pop(),
                     pubDate: new Date((pubDate || []).pop()),
                     link: encodeURI((link || ['']).pop())
                 };
@@ -149,7 +150,16 @@ setIntervalAndInit(() => {
 const progressLoop = setInterval(() => {
     console.log('------------------------------------------------');
     console.log(`Download queue: ${downloadQueue.length}`);
-    console.log(`Downloading: ${torrentClient.torrentsInProgress().length}${torrentClient.torrentsInProgress().reduce((a, t) => `${a}\n  ${t.name}: ${((t.progress * 100).toFixed(2)).toString()} % | DL @ ${prettyBytes(t.downloadSpeed)}/s | UL @ ${prettyBytes(t.uploadSpeed)}/s | Path: ${t.path}` , '')}`);
+    console.log(`Downloading: ${torrentClient.torrentsInProgress().length}`);
+    console.table(torrentClient.torrentsInProgress().map(t => {
+        return {
+            Mame: t.name,
+            Progress: `${((t.progress * 100).toFixed(2)).toString()}%`,
+            DL: `${prettyBytes(t.downloadSpeed)}/s`,
+            UL: `${prettyBytes(t.uploadSpeed)}/s`,
+            Path: t.path
+        }
+    }));
     if (downloadQueue.length === 0 && torrentClient.torrentsInProgress().length === 0) {
         console.log('No more to download. Waiting...');
         return;
@@ -161,8 +171,13 @@ const queueLoop = setInterval(() => {
     const currentDownloads = downloadQueue.slice(0, config.maxSimultaneousDownloads - torrentClient.torrentsInProgress().length);
     downloadQueue = downloadQueue.slice(config.maxSimultaneousDownloads - torrentClient.torrentsInProgress().length);
     currentDownloads.forEach(async item => {
-        const res = await fetch(item.link, {redirect: 'manual'});
-        const magnet = res.headers.get('location');
+        let magnet;
+        if (item.link.startsWith('magnet:')) {
+            magnet = item.link;
+        } else {
+            const res = await fetch(item.link, {redirect: 'manual'});
+            magnet = res.headers.get('location');
+        }
         if (magnet === null) {
             console.warn('Error fetching magnet:', item.link, res.status, res.headers, res);
             return;
@@ -232,7 +247,7 @@ const queueLoop = setInterval(() => {
                         console.log(`${item.title} will not be deleted for now`);
                     }
                 }
-            }, 10000);
+            }, 60000);
 
             torrent.on('done', () => {
                 torrent.downloadFinishedAt = Date.now();

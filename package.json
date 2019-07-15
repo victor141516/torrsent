@@ -4,6 +4,7 @@
   "description": "",
   "main": "client.js",
   "dependencies": {
+    "console.table": "^0.10.0",
     "get-folder-size": "^2.0.1",
     "node-fetch": "^2.6.0",
     "pretty-bytes": "^5.2.0",
