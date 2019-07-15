@@ -168,7 +168,7 @@ const progressLoop = setInterval(() => {
     console.log(`Downloading: ${torrentClient.torrentsInProgress().length}`);
     console.table(torrentClient.torrentsInProgress().map(t => {
         return {
-            Mame: t.name,
+            Name: t.name,
             Progress: `${((t.progress * 100).toFixed(2)).toString()}%`,
             DL: `${prettyBytes(t.downloadSpeed)}/s`,
             UL: `${prettyBytes(t.uploadSpeed)}/s`,
