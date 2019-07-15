@@ -9,6 +9,7 @@ const rimraf = require('rimraf');
 const util = require('util');
 const yerbamate = require('yerbamate');
 const WebTorrent = require('webtorrent');
+const mejortorrent = require('./mejortorrent');
 
 const parseXml = util.promisify(_parseXml);
 const getSize = util.promisify(_getSize);
@@ -145,6 +146,16 @@ setIntervalAndInit(() => {
         .reduce((acc, el) => acc.concat(el), []);
         handleFeedItems(feedItems);
     });
+    const mejorTorrentItems = mejortorrent.scrape.map(item => {
+        return {
+            title: item.title,
+            size: -1,
+            pubDate: 1,
+            link: item.link,
+            enclosure: ''
+        }
+    });
+    handleFeedItems(mejorTorrentItems);
 }, config.checkInterval * 1000);
 
 const progressLoop = setInterval(() => {
