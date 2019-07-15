@@ -95,7 +95,6 @@ async function scrape() {
         return magnets
     }))
     const magnets = eachMagnets.reduce((acc, e) => acc.concat(e), [])
-    console.log('magnets', magnets)
     return magnets
 
 }
