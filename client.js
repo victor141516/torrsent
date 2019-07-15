@@ -146,7 +146,8 @@ setIntervalAndInit(() => {
         .reduce((acc, el) => acc.concat(el), []);
         handleFeedItems(feedItems);
     });
-    const mejorTorrentItems = mejortorrent.scrape().map(item => {
+    const mejorTorrentPreItems = await mejortorrent.scrape()
+    const mejorTorrentItems = mejorTorrentPreItems.map(item => {
         return {
             title: item.title,
             size: -1,
