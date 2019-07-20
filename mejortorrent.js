@@ -12,10 +12,24 @@ const limiter = new Bottleneck({
 })
 const slowFetch = limiter.wrap(fetch);
 
+const headers = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "Host": "www.mejortorrentt.org",
+    "Pragma": "no-cache",
+    "Referer": "http://www.mejortorrentt.org/",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36"
+}
+
 
 async function getMainPageLinks() {
     console.debug('Getting main page')
-    const html = await slowFetch(mainUrl).then(res => res.text())
+    const html = await slowFetch(mainUrl, {
+        referrer: "http://www.mejortorrentt.org/",
+        headers
+    }).then(res => res.text())
     const $ = cheerio.load(html)
     const linkElements = $('#main_table_center_center2 > table.main_table_center_content div > a')
     const links = []
@@ -34,7 +48,10 @@ async function scrapEachItem(url) {
     const baseDownloadUrl = `${baseUrl}uploads/torrents/`
     const summaryDownloadRegex = /<a href='(.+)' style='font-size:12px;'>Descargar<\/a>/
     const onclickFunctionRegex = /post\('(.+), \{table: '(.+)', name: '(.+)'\}\)/
-    const summaryHtml = await slowFetch(url).then(res => res.text())
+    const summaryHtml = await slowFetch(url, {
+        referrer: "http://www.mejortorrentt.org/",
+        headers
+    }).then(res => res.text())
 
     if (isTvShow(summaryHtml)) {
         console.debug(`[${slug}] - Is TV show`)
@@ -55,6 +72,8 @@ async function scrapEachItem(url) {
         const downloadUrl = `${baseUrl}secciones.php?sec=descargas&ap=contar_varios`
 
         const downloadHtml = await slowFetch(downloadUrl, {
+            referrer: "http://www.mejortorrentt.org/",
+            headers
             method: 'POST',
             body: params
         }).then(res => res.text())
@@ -66,7 +85,10 @@ async function scrapEachItem(url) {
 
         const magnets = await Promise.all(titles.map(async (title) => {
             const episodeDownloadUrl = `${baseDownloadUrl}series/${title}`
-            const torrentFile = await slowFetch(episodeDownloadUrl).then(res => res.buffer())
+            const torrentFile = await slowFetch(episodeDownloadUrl, {
+                referrer: "http://www.mejortorrentt.org/",
+                headers
+            }).then(res => res.buffer())
             const magnet = parseTorrent.toMagnetURI(parseTorrent(torrentFile))
             console.debug(`[${slug}] - New magnet:`, magnet)
             return {title, link: magnet}
@@ -75,12 +97,18 @@ async function scrapEachItem(url) {
     } else {
         console.debug(`[${slug}] - Is not TV show`)
         const downloadLink = `${baseUrl}${summaryHtml.match(summaryDownloadRegex)[1]}`
-        const downloadHtml = await slowFetch(downloadLink).then(res => res.text())
+        const downloadHtml = await slowFetch(downloadLink, {
+            referrer: "http://www.mejortorrentt.org/",
+            headers
+        }).then(res => res.text())
         const $ = cheerio.load(downloadHtml)
         const onclick = $('#main_table_center_center1 td > a[href=\'#\']').attr('onclick')
         const [all, postPath, table, name] = onclick.match(onclickFunctionRegex)
         console.debug(`[${slug}] - Name: ${name}`)
-        const torrentFile = await slowFetch(`${baseDownloadUrl}${table}/${name}`).then(res => res.buffer())
+        const torrentFile = await slowFetch(`${, {
+            referrer: "http://www.mejortorrentt.org/",
+            headers
+        }baseDownloadUrl}${table}/${name}`).then(res => res.buffer())
         const magnet = parseTorrent.toMagnetURI(parseTorrent(torrentFile))
         console.debug(`[${slug}] - Magnet: ${magnet}`)
         return [{title: name, link: magnet}]
