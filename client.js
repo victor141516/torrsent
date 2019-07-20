@@ -2,6 +2,7 @@ const cTable = require('console.table');
 const fetch = require('node-fetch');
 const fs = require('fs');
 const _getSize = require('get-folder-size');
+const parseTorrent = require('parse-torrent')
 const _parseXml = require('xml2js').parseString;
 const prettyBytes = n => require('pretty-bytes')(Number(n));
 const redis = require('redis');
@@ -139,7 +140,8 @@ setIntervalAndInit(() => {
                     title: (title || []).pop(),
                     size: (size || ['-1']).pop(),
                     pubDate: new Date((pubDate || []).pop()),
-                    link: encodeURI((link || ['']).pop())
+                    link: encodeURI((link || ['']).pop()),
+                    enclosure: (enclosure || [{'$': {}}]).pop()['$']
                 };
             });
         })
@@ -189,6 +191,9 @@ const queueLoop = setInterval(() => {
         let magnet;
         if (item.link.startsWith('magnet:')) {
             magnet = item.link;
+        } else if (item.enclosure.url) {
+            const torrentFile = await fetch(item.enclosure.url).then(res => res.buffer());
+            magnet = parseTorrent.toMagnetURI(parseTorrent(torrentFile));
         } else {
             const res = await fetch(item.link, {redirect: 'manual'});
             magnet = res.headers.get('location');
