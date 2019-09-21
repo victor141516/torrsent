@@ -73,7 +73,7 @@ async function scrapEachItem(url) {
 
         const downloadHtml = await slowFetch(downloadUrl, {
             referrer: "http://www.mejortorrentt.org/",
-            headers
+            headers,
             method: 'POST',
             body: params
         }).then(res => res.text())
@@ -105,10 +105,7 @@ async function scrapEachItem(url) {
         const onclick = $('#main_table_center_center1 td > a[href=\'#\']').attr('onclick')
         const [all, postPath, table, name] = onclick.match(onclickFunctionRegex)
         console.debug(`[${slug}] - Name: ${name}`)
-        const torrentFile = await slowFetch(`${, {
-            referrer: "http://www.mejortorrentt.org/",
-            headers
-        }baseDownloadUrl}${table}/${name}`).then(res => res.buffer())
+        const torrentFile = await slowFetch(`${baseDownloadUrl}${table}/${name}`).then(res => res.buffer())
         const magnet = parseTorrent.toMagnetURI(parseTorrent(torrentFile))
         console.debug(`[${slug}] - Magnet: ${magnet}`)
         return [{title: name, link: magnet}]
