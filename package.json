@@ -9,7 +9,7 @@
     "console-stamp": "^0.2.9",
     "console.table": "^0.10.0",
     "get-folder-size": "^2.0.1",
-    "node-fetch": "^2.6.0",
+    "node-fetch": "^2.6.7",
     "parse-torrent": "^7.0.0",
     "pretty-bytes": "^5.2.0",
     "redis": "^2.8.0",
